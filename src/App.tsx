@@ -492,7 +492,12 @@ export const App: React.FC = () => {
       videoMetadata: meta,
       rally: {
         startFrame: item.rally.startFrame ?? 0,
-        endFrame: item.rally.endFrame ?? meta.frameCount - 1,
+        // keep a user-set end, but follow the video when it was only the automatic default
+        endFrame:
+          item.rally.endFrame === null ||
+          (item.videoMetadata && item.rally.endFrame === item.videoMetadata.frameCount - 1)
+            ? meta.frameCount - 1
+            : item.rally.endFrame,
       },
     }));
   };

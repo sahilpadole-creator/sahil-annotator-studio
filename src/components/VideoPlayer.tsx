@@ -106,25 +106,66 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     }
   }, [currentFrame, fps, isPlaying, metadata]);
 
+  // Browsers don't tell us a video's frame rate, so measure it: play a moment (muted) and
+  // look at the gap between presented frames. Without this every clip was treated as 30 fps
+  // and skill frames landed at the wrong time on 25 fps videos.
+  const detectFps = (video: HTMLVideoElement): Promise<number | null> =>
+    new Promise((resolve) => {
+      const v = video as any;
+      if (typeof v.requestVideoFrameCallback !== 'function') return resolve(null);
+      const wasMuted = video.muted;
+      const startTime = video.currentTime;
+      const times: number[] = [];
+      let done = false;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        video.pause();
+        video.muted = wasMuted;
+        video.currentTime = startTime;
+        let best = Infinity;
+        for (let i = 1; i < times.length; i++) {
+          const d = times[i] - times[i - 1];
+          if (d > 0.0001 && d < best) best = d;
+        }
+        if (!isFinite(best)) return resolve(null);
+        const raw = 1 / best;
+        const common = [23.976, 24, 25, 29.97, 30, 48, 50, 59.94, 60];
+        const snapped = common.reduce((a, b) => (Math.abs(b - raw) < Math.abs(a - raw) ? b : a));
+        resolve(Math.abs(snapped - raw) / snapped < 0.08 ? Math.round(snapped * 1000) / 1000 : Math.round(raw));
+      };
+      const tick = (_now: number, meta: any) => {
+        times.push(meta.mediaTime);
+        if (times.length >= 8) finish();
+        else v.requestVideoFrameCallback(tick);
+      };
+      v.requestVideoFrameCallback(tick);
+      video.muted = true;
+      video.play().catch(finish);
+      setTimeout(finish, 1500);
+    });
+
   // Video loaded metadata
-  const handleLoadedMetadata = () => {
+  const handleLoadedMetadata = async () => {
     const video = videoRef.current;
     if (!video) return;
 
     const duration = video.duration || 1;
-    const detectedFps = 30; // standard default for volleyball clips
-    const frameCount = Math.round(duration * detectedFps);
-
-    const meta: VideoMetadata = {
-      filename: videoFile ? videoFile.name : 'rally_video.mp4',
-      fps: detectedFps,
-      width: video.videoWidth || 1920,
-      height: video.videoHeight || 1080,
-      duration,
-      frameCount: frameCount > 0 ? frameCount : 500,
+    const build = (fpsValue: number): VideoMetadata => {
+      const frameCount = Math.round(duration * fpsValue);
+      return {
+        filename: videoFile ? videoFile.name : 'rally_video.mp4',
+        fps: fpsValue,
+        width: video.videoWidth || 1920,
+        height: video.videoHeight || 1080,
+        duration,
+        frameCount: frameCount > 0 ? frameCount : 500,
+      };
     };
 
-    onMetadataLoaded(meta);
+    onMetadataLoaded(build(30)); // show something straight away, then correct it
+    const detected = await detectFps(video);
+    if (detected && detected !== 30 && videoRef.current === video) onMetadataLoaded(build(detected));
   };
 
   // Video time update while playing
