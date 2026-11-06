@@ -87,7 +87,7 @@ export const TimelineScrubber: React.FC<TimelineScrubberProps> = ({
             <div
               key={ev.id}
               style={{ left: pct(ev.frame) }}
-              title={`${skillName(ev.skill)} @ Frame ${ev.frame} (click to jump here)`}
+              title={`${skillName(ev.skill)} @ Frame ${ev.frame} (click to jump here)${ev.ruleNote ? ` — auto-fixed: ${ev.ruleNote}` : ''}`}
               className="absolute top-0 bottom-0 -translate-x-1/2 flex items-center justify-center z-20"
             >
               <button

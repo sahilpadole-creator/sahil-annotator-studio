@@ -23,6 +23,8 @@ export interface SkillEvent {
   skill: SkillLabel;
   source?: 'auto' | 'manual';
   player_id?: number;
+  confidence?: number; // model confidence, used by the duplicate rule
+  ruleNote?: string; // set when a post-processing rule changed this skill
   // Specific to Set skills
   setStyle?: SetStyle;
   setDirection?: SetDirection;

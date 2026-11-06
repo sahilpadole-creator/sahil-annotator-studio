@@ -13,6 +13,7 @@ import {
   FlagDecision,
   BoxRect,
 } from '../types';
+import { applySkillPostprocess } from './skillPostprocess';
 
 export interface ParsedXmlResult {
   rally: RallyBounds;
@@ -160,6 +161,7 @@ export function parseXmlAnnotations(xmlString: string): ParsedXmlResult {
             skill: normalizedSkill,
             source,
             player_id: !isNaN(playerId as number) ? playerId : undefined,
+            confidence: Number.isFinite(parseFloat(attrMap.get('confidence') ?? '')) ? parseFloat(attrMap.get('confidence')!) : undefined,
             setStyle,
             setDirection,
           });
@@ -206,6 +208,7 @@ export function parseJsonAnnotations(text: string): ParsedXmlResult {
       skill,
       source: 'auto',
       player_id: Number.isFinite(Number(ev.player_id)) && ev.player_id !== undefined ? Number(ev.player_id) : undefined,
+      confidence: Number.isFinite(Number(ev.confidence)) && ev.confidence !== undefined ? Number(ev.confidence) : undefined,
       setStyle,
       setDirection,
     });
@@ -241,5 +244,9 @@ export function parseJsonAnnotations(text: string): ParsedXmlResult {
 /** Accepts either XML or the pipeline JSON. */
 export function parseAnnotations(text: string): ParsedXmlResult {
   const t = text.trimStart();
-  return t.startsWith('{') || t.startsWith('[') ? parseJsonAnnotations(text) : parseXmlAnnotations(text);
+  const parsed = t.startsWith('{') || t.startsWith('[') ? parseJsonAnnotations(text) : parseXmlAnnotations(text);
+  // Fix typical model mistakes (reception/dig/set order etc.); block is left alone
+  const { events, changes } = applySkillPostprocess(parsed.events);
+  if (changes.length > 0) console.info('Skill post-processing:', changes);
+  return { ...parsed, events };
 }
