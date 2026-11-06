@@ -343,7 +343,10 @@ export const App: React.FC = () => {
     }
 
     // Auto-merge any split duplicates across the playlist
-    const finalList = mergeDuplicatePlaylistItems(currentList);
+    // Natural order (rally_1, rally_2, ... rally_10), not the order the browser listed the files
+    const finalList = mergeDuplicatePlaylistItems(currentList).sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })
+    );
     setPlaylist(finalList);
     if (!activeItemId && finalList.length > 0) {
       setActiveItemId(finalList[0].id);
