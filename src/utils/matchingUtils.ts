@@ -1,6 +1,17 @@
 import { PlaylistItem } from '../types';
 
+const stemCache = new Map<string, string>();
+
 export function extractCleanStem(filename: string): string {
+  const cached = stemCache.get(filename);
+  if (cached !== undefined) return cached;
+  const stem = computeStem(filename);
+  if (stemCache.size > 5000) stemCache.clear();
+  stemCache.set(filename, stem);
+  return stem;
+}
+
+function computeStem(filename: string): string {
   return filename
     .replace(/\.[^/.]+$/, '')
     .replace(/^(annotations?|annotated)[-_]/i, '')
@@ -23,8 +34,8 @@ export function areFilesMatching(name1: string, name2: string): boolean {
   const stem2 = extractCleanStem(name2);
   
   if (stem1 && stem2) {
+    // Exact match only: a substring test wrongly merged rally "1" with "12", "100"... on big batches
     if (stem1 === stem2) return true;
-    if (stem1.includes(stem2) || stem2.includes(stem1)) return true;
   }
 
   const id1 = extractNumericId(name1);

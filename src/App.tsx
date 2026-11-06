@@ -77,9 +77,10 @@ export const App: React.FC = () => {
       );
 
       // Bring back the video / XML files saved in the browser so nothing has to be re-added
-      mergedList.forEach(async (item) => {
+      (async () => {
+       for (const item of mergedList) {
         const stored = await loadFiles(item.id);
-        if (!stored.video && !stored.xml) return;
+        if (!stored.video && !stored.xml) continue;
         if (stored.video) savedFilesRef.current.add(stored.video);
         const rawXml = stored.xml ? await stored.xml.text() : undefined;
         setPlaylist((prev) =>
@@ -94,12 +95,14 @@ export const App: React.FC = () => {
               : p
           )
         );
-      });
+       }
+      })();
     }
   }, []);
 
   // Save newly added video / XML files so they survive a page reload
   const savedFilesRef = useRef<WeakSet<File>>(new WeakSet());
+  const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
   useEffect(() => {
     playlist.forEach((item) => {
       const toSave: { video?: File; xml?: File } = {};
@@ -111,7 +114,10 @@ export const App: React.FC = () => {
         toSave.xml = item.xmlFile;
         savedFilesRef.current.add(item.xmlFile);
       }
-      if (toSave.video || toSave.xml) saveFiles(item.id, toSave);
+      if (toSave.video || toSave.xml) {
+        // One at a time: 200+ parallel IndexedDB writes of whole videos choke the browser
+        saveQueueRef.current = saveQueueRef.current.then(() => saveFiles(item.id, toSave));
+      }
     });
   }, [playlist]);
 
