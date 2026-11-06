@@ -11,6 +11,7 @@ import {
   FileCode,
   AlertCircle,
   Plus,
+  FolderOpen,
   Video,
   Link as LinkIcon,
 } from 'lucide-react';
@@ -21,7 +22,7 @@ interface PlaylistSidebarProps {
   playlist: PlaylistItem[];
   activeItemId: string | null;
   onSelectItem: (id: string) => void;
-  onFilesSelected: (files: FileList) => void;
+  onFilesSelected: (files: FileList | File[]) => void;
   onDeleteItem: (id: string) => void;
   onResetItem: (id: string) => void;
   isOpen: boolean;
@@ -43,6 +44,7 @@ export const PlaylistSidebar: React.FC<PlaylistSidebarProps> = ({
   onLinkXml,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
   const linkVideoInputRef = useRef<HTMLInputElement>(null);
   const linkXmlInputRef = useRef<HTMLInputElement>(null);
   const [targetItemIdForLink, setTargetItemIdForLink] = useState<string | null>(null);
@@ -51,9 +53,30 @@ export const PlaylistSidebar: React.FC<PlaylistSidebarProps> = ({
     e.preventDefault();
   };
 
-  const handleDrop = (e: React.DragEvent) => {
+  // Dropped folders only hand over the folder itself, so walk inside them ourselves
+  const readEntry = async (entry: any, out: File[]): Promise<void> => {
+    if (entry.isFile) {
+      const file: File = await new Promise((res, rej) => entry.file(res, rej));
+      out.push(file);
+    } else if (entry.isDirectory) {
+      const reader = entry.createReader();
+      for (;;) {
+        const batch: any[] = await new Promise((res, rej) => reader.readEntries(res, rej));
+        if (batch.length === 0) break; // readEntries returns 100 at a time
+        for (const child of batch) await readEntry(child, out);
+      }
+    }
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+    const items = Array.from(e.dataTransfer.items || []);
+    const entries = items.map((i) => (i as any).webkitGetAsEntry?.()).filter(Boolean);
+    if (entries.length > 0) {
+      const files: File[] = [];
+      for (const entry of entries) await readEntry(entry, files);
+      if (files.length > 0) onFilesSelected(files);
+    } else if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       onFilesSelected(e.dataTransfer.files);
     }
   };
@@ -114,6 +137,14 @@ export const PlaylistSidebar: React.FC<PlaylistSidebarProps> = ({
         </div>
         <div className="flex items-center space-x-1">
           <button
+            onClick={() => folderInputRef.current?.click()}
+            title="Open a whole folder of rallies"
+            className="p-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 dark:bg-studio-darkCard dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold flex items-center space-x-1 transition-colors"
+          >
+            <FolderOpen className="w-3.5 h-3.5" />
+            <span>Folder</span>
+          </button>
+          <button
             onClick={() => fileInputRef.current?.click()}
             title="Add Video or XML"
             className="p-1.5 rounded-lg bg-cyan-500 hover:bg-cyan-600 text-white text-xs font-semibold flex items-center space-x-1 transition-colors"
@@ -140,6 +171,18 @@ export const PlaylistSidebar: React.FC<PlaylistSidebarProps> = ({
         className="hidden"
         onChange={(e) => {
           if (e.target.files) onFilesSelected(e.target.files);
+        }}
+      />
+
+      {/* Hidden Folder Input: picks every file inside a folder */}
+      <input
+        ref={folderInputRef}
+        type="file"
+        {...({ webkitdirectory: '', directory: '' } as any)}
+        className="hidden"
+        onChange={(e) => {
+          if (e.target.files) onFilesSelected(Array.from(e.target.files));
+          e.target.value = '';
         }}
       />
 
@@ -188,6 +231,16 @@ export const PlaylistSidebar: React.FC<PlaylistSidebarProps> = ({
           <p className="text-[11px] text-slate-400 dark:text-slate-500 max-w-xs">
             Drop your match rally clips and skill annotations. Matching files auto-pair into a single rally!
           </p>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              folderInputRef.current?.click();
+            }}
+            className="mt-3 px-3 py-1.5 rounded-lg bg-cyan-500 hover:bg-cyan-600 text-white text-xs font-semibold flex items-center space-x-1.5"
+          >
+            <FolderOpen className="w-3.5 h-3.5" />
+            <span>Open Folder</span>
+          </button>
         </div>
       ) : (
         <div

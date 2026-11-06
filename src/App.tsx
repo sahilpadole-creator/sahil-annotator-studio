@@ -182,7 +182,7 @@ export const App: React.FC = () => {
   };
 
   // Handle file uploads (both videos and XMLs)
-  const handleFilesSelected = async (files: FileList) => {
+  const handleFilesSelected = async (files: FileList | File[]) => {
     const fileArray = Array.from(files);
     const videoFiles = fileArray.filter((f) => f.type.startsWith('video/') || f.name.endsWith('.mp4'));
     // Annotation files: XML, or the pipeline's <rally>_touch_skill_block.json (never *_result.json).
