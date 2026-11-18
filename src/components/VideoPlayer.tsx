@@ -94,6 +94,28 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     }
   }, [videoFile, videoUrl]);
 
+  // Coalesced seeking: only one seek is in flight at a time and the newest target wins.
+  // Holding an arrow key used to queue dozens of seeks, each decoding from a keyframe,
+  // which froze the player on low-RAM laptops.
+  const pendingSeek = useRef<number | null>(null);
+  const seekTo = (time: number) => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (video.seeking) {
+      pendingSeek.current = time;
+    } else {
+      pendingSeek.current = null;
+      video.currentTime = time;
+    }
+  };
+  const handleSeeked = () => {
+    const video = videoRef.current;
+    if (!video || pendingSeek.current === null) return;
+    const t = pendingSeek.current;
+    pendingSeek.current = null;
+    video.currentTime = t;
+  };
+
   // Sync external currentFrame to video.currentTime
   useEffect(() => {
     const video = videoRef.current;
@@ -102,7 +124,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     const targetTime = currentFrame / fps;
     // Only update if difference is greater than half a frame
     if (Math.abs(video.currentTime - targetTime) > 0.5 / fps) {
-      video.currentTime = targetTime;
+      seekTo(targetTime);
     }
   }, [currentFrame, fps, isPlaying, metadata]);
 
@@ -207,7 +229,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     const totalFrames = metadata?.frameCount || 9999;
     const newFrame = Math.max(0, Math.min(totalFrames - 1, currentFrame + delta));
     onFrameChange(newFrame);
-    video.currentTime = newFrame / fps;
+    seekTo(newFrame / fps);
   };
 
   // Position of the mouse on the video itself, 0..1 (correct with zoom / pan / letterboxing)
@@ -391,6 +413,8 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
               src={blobUrl}
               onLoadedMetadata={handleLoadedMetadata}
               onTimeUpdate={handleTimeUpdate}
+              onSeeked={handleSeeked}
+              preload="metadata"
               onEnded={() => setIsPlaying(false)}
               muted={isMuted}
               playsInline
