@@ -1,3 +1,4 @@
+import { convertToH264 } from '../utils/wasmConvert';
 import { SKILL_INFO, skillLetter, skillName, eventsNearFrame } from '../utils/skills';
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import {
@@ -79,10 +80,26 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
   const fps = metadata?.fps || 30;
 
+  // Fallback: if the browser cannot decode the clip, re-encode it to H.264 in the browser.
+  const [converted, setConverted] = useState<{ src: File; out: File } | null>(null);
+  const [convertPct, setConvertPct] = useState<number | null>(null);
+  const failedConvert = useRef<Set<File>>(new Set());
+  const playFile = videoFile && converted?.src === videoFile ? converted.out : videoFile;
+
+  const handleVideoError = () => {
+    if (!videoFile || convertPct !== null || converted?.src === videoFile || failedConvert.current.has(videoFile)) return;
+    const src = videoFile;
+    setConvertPct(0);
+    convertToH264(src, fps, setConvertPct)
+      .then((out) => setConverted({ src, out }))
+      .catch((err) => { failedConvert.current.add(src); console.warn('H.264 convert failed', err); })
+      .finally(() => setConvertPct(null));
+  };
+
   // Manage video blob URL
   useEffect(() => {
-    if (videoFile) {
-      const url = URL.createObjectURL(videoFile);
+    if (playFile) {
+      const url = URL.createObjectURL(playFile);
       setBlobUrl(url);
       return () => {
         URL.revokeObjectURL(url);
@@ -92,7 +109,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     } else {
       setBlobUrl(null);
     }
-  }, [videoFile, videoUrl]);
+  }, [playFile, videoUrl]);
 
   // Coalesced seeking: only one seek is in flight at a time and the newest target wins.
   // Holding an arrow key used to queue dozens of seeks, each decoding from a keyframe,
@@ -398,6 +415,11 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
           pickingMode !== 'none' || drawBoxMode !== 'none' ? 'crosshair' : isPanning ? 'grabbing' : zoomLevel > 1 ? 'grab' : 'default'
         }`}
       >
+        {convertPct !== null && (
+          <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/70 text-white text-sm">
+            Converting video to H.264… {Math.round(convertPct * 100)}%
+          </div>
+        )}
         {blobUrl ? (
           <div
             style={{
@@ -414,6 +436,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
               onLoadedMetadata={handleLoadedMetadata}
               onTimeUpdate={handleTimeUpdate}
               onSeeked={handleSeeked}
+              onError={handleVideoError}
               preload="metadata"
               onEnded={() => setIsPlaying(false)}
               muted={isMuted}
