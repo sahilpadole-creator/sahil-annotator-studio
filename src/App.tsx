@@ -735,6 +735,17 @@ export const App: React.FC = () => {
         return;
       }
 
+      // Held frame-step keys: wait for the previous seek to land before stepping again,
+      // so the frame counter never races ahead of what the video can decode (low-RAM laptops).
+      if (
+        e.repeat &&
+        (e.key === 'ArrowRight' || e.key === 'ArrowLeft' || e.key === '[' || e.key === ']') &&
+        document.querySelector('video')?.seeking
+      ) {
+        e.preventDefault();
+        return;
+      }
+
       // Next 1 Frame: Right Arrow
       if (e.key === 'ArrowRight') {
         e.preventDefault();
