@@ -90,7 +90,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     if (!videoFile || convertPct !== null || converted?.src === videoFile || failedConvert.current.has(videoFile)) return;
     const src = videoFile;
     setConvertPct(0);
-    convertToH264(src, fps, setConvertPct)
+    convertToH264(src, setConvertPct)
       .then((out) => setConverted({ src, out }))
       .catch((err) => { failedConvert.current.add(src); console.warn('H.264 convert failed', err); })
       .finally(() => setConvertPct(null));
