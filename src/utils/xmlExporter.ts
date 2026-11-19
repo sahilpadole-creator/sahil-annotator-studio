@@ -41,7 +41,7 @@ export function generateXmlAnnotations(
   }
 
   if (refereeActions.isAnnotated) {
-    if (refereeActions.mainRefereeSignalFrame !== null && refereeActions.pointWinner !== 'none') {
+    if (refereeActions.mainRefereeSignalFrame !== null) {
       framesToOutput.add(refereeActions.mainRefereeSignalFrame);
     }
     if (refereeActions.umpireFlag.hasFlag && refereeActions.umpireFlag.frame !== null) {
@@ -109,8 +109,7 @@ export function generateXmlAnnotations(
     // Referee Point tag
     if (
       refereeActions.isAnnotated &&
-      refereeActions.mainRefereeSignalFrame === frame &&
-      refereeActions.pointWinner !== 'none'
+      refereeActions.mainRefereeSignalFrame === frame
     ) {
       xml += `    <tag label="referee_point" source="manual">\n`;
       xml += `      <attribute name="point_winner">${refereeActions.pointWinner}</attribute>\n`;

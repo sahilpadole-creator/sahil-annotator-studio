@@ -216,24 +216,53 @@ export function parseJsonAnnotations(text: string): ParsedXmlResult {
   events.sort((a, b) => a.frame - b.frame);
 
   const frameCount = Number(data.frame_count);
+  const num = (v: any): number | null => (v !== null && v !== undefined && Number.isFinite(Number(v)) ? Number(v) : null);
+  const pt = (a: any) => (Array.isArray(a) && num(a[0]) !== null && num(a[1]) !== null ? { x: Number(a[0]), y: Number(a[1]) } : null);
+  const boxes = (arr: any): BoxRect[] =>
+    (Array.isArray(arr) ? arr : [])
+      .map((b: any) => (Array.isArray(b) && b.length >= 4 ? { x: Number(b[0]), y: Number(b[1]), w: Number(b[2]), h: Number(b[3]) } : null))
+      .filter((b): b is BoxRect => b !== null && [b.x, b.y, b.w, b.h].every(Number.isFinite) && b.w > 0 && b.h > 0);
+
+  const bl = data.ball_landing;
+  const ballLanding: BallLandingAnnotation =
+    bl && num(bl.frame) !== null
+      ? {
+          landingFrame: Number(bl.frame),
+          landingCoord: pt(bl.xy),
+          landingOutcome: bl.landing_result === 'out' ? 'out' : 'in',
+          precedingTouch: ['block', 'dig'].includes(bl.preceding_touch) ? bl.preceding_touch : 'none',
+          touchFrame: num(bl.touch_frame),
+          touchCoord: pt(bl.touch_xy),
+          isAnnotated: true,
+        }
+      : { landingFrame: null, landingCoord: null, landingOutcome: 'in', precedingTouch: 'none', touchFrame: null, touchCoord: null, isAnnotated: false };
+
+  const ra = data.referee_actions;
+  const flag = ra && Array.isArray(ra.umpire_flags) ? ra.umpire_flags[0] : null;
+  const refereeActions: RefereeActionsAnnotation = ra
+    ? {
+        mainRefereeSignalFrame: num(ra.signal_frame),
+        mainRefereeBoxes: boxes(ra.referee_boxes),
+        pointWinner: ['team_left', 'team_right'].includes(ra.point_winner) ? ra.point_winner : 'none',
+        umpireFlag: flag
+          ? {
+              hasFlag: true,
+              frame: num(flag.frame),
+              side: ['left', 'right', 'both'].includes(flag.side) ? flag.side : 'none',
+              decision: ['in', 'out', 'touch', 'antenna'].includes(flag.decision) ? flag.decision : 'none',
+              boxes: boxes(flag.boxes),
+            }
+          : { hasFlag: false, frame: null, side: 'none', decision: 'none' },
+        isAnnotated: true,
+      }
+    : { mainRefereeSignalFrame: null, pointWinner: 'none', umpireFlag: { hasFlag: false, frame: null, side: 'none', decision: 'none' }, isAnnotated: false };
+
+  const rallyData = data.rally;
   return {
-    rally: { startFrame: null, endFrame: null },
+    rally: { startFrame: num(rallyData?.start_frame), endFrame: num(rallyData?.end_frame) },
     events,
-    ballLanding: {
-      landingFrame: null,
-      landingCoord: null,
-      landingOutcome: 'in',
-      precedingTouch: 'none',
-      touchFrame: null,
-      touchCoord: null,
-      isAnnotated: false,
-    },
-    refereeActions: {
-      mainRefereeSignalFrame: null,
-      pointWinner: 'none',
-      umpireFlag: { hasFlag: false, frame: null, side: 'none', decision: 'none' },
-      isAnnotated: false,
-    },
+    ballLanding,
+    refereeActions,
     detectedFrameCount: Number.isFinite(frameCount) && frameCount > 0 ? frameCount : maxFrame > 0 ? maxFrame + 1 : undefined,
     fps: Number(data.fps) > 0 ? Number(data.fps) : undefined,
     width: Number(data.width) > 0 ? Number(data.width) : undefined,

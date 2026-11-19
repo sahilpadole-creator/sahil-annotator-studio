@@ -193,7 +193,9 @@ export const App: React.FC = () => {
         isXml(f) ||
         (f.name.toLowerCase().endsWith('.json') &&
           !/_result\.json$/i.test(f.name) &&
-          !xmlStems.has(f.name.replace(/\.[^/.]+$/, '')))
+          !xmlStems.has(f.name.replace(/\.[^/.]+$/, '')) &&
+          // our own export (<name>_updated.json) duplicates <name>.xml: use the XML
+          !xmlStems.has(f.name.replace(/\.[^/.]+$/, '').replace(/_updated$/i, '')))
     );
 
     let currentList = [...playlist];
